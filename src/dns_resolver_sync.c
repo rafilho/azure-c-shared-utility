@@ -15,6 +15,11 @@
 #include "azure_c_shared_utility/crt_abstractions.h"
 #include "azure_c_shared_utility/xlogging.h"
 
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/un.h>
+
 // EXTRACT_IPV4 pulls the uint32_t IPv4 address out of an addrinfo struct
 // This will not be needed for the asynchronous design
 #ifdef WIN32_NOT_USED
