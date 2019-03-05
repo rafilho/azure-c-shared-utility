@@ -309,7 +309,7 @@ static int initiate_socket_connection(SOCKET_IO_INSTANCE* socket_io_instance)
     struct sockaddr* connect_addr = NULL;
     socklen_t connect_addr_len;
     struct addrinfo* addr = dns_resolver_get_addrInfo(socket_io_instance->dns_resolver);
-    //(void)memcpy(&(socket_io_instance->addrInfoIp), &addr, sizeof(*(socket_io_instance->addrInfoIp)));
+    (void)memcpy((socket_io_instance->addrInfoIp), &addr, sizeof(*(socket_io_instance->addrInfoIp)));
 
         if ((-1 == (flags = fcntl(socket_io_instance->socket, F_GETFL, 0))) ||
             (fcntl(socket_io_instance->socket, F_SETFL, flags | O_NONBLOCK) == -1))

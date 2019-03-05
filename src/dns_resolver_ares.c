@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 // This file is OS-specific, and is identified by setting include directories
 // in the project
@@ -99,27 +100,42 @@ static void query_completed_cb(void *arg, int status, int timeouts, struct hoste
 {
     int i;
     char *curr;
-    ADDRINFO *ai;
-    ADDRINFO *firstai = NULL;
-    ADDRINFO *prevai = NULL;
+    struct addrinfo *ai;
+    struct addrinfo *firstai = NULL;
+    struct addrinfo *prevai = NULL;
     struct sockaddr_in *addr;
     
     DNSRESOLVER_INSTANCE *dns = (DNSRESOLVER_INSTANCE *)arg;
     (void)status;
     (void)timeouts;
     
-    dns->addrInfo = calloc(1, sizeof(ADDRINFO));
+    dns->addrInfo = calloc(1, sizeof(struct addrinfo));
     dns->addrInfo->ai_addr = calloc(1, sizeof(struct sockaddr_in));
     
     for (i = 0; (curr = he->h_addr_list[i]) != NULL && i < 1; i++) {
 
         size_t ss_size = sizeof(struct sockaddr_in);
 
-        ai = calloc(1, sizeof(ADDRINFO));
+        ai = calloc(1, sizeof(struct addrinfo));
         if (!ai) {
             break;
         }
+#ifdef WIN32
         ai->ai_canonname = _strdup(he->h_name);
+#else
+        int len = (int)strlen((char*)he->h_name);
+        ai->ai_canonname = (char*)malloc((len + 1) * sizeof(char));
+        if (ai->ai_canonname == NULL)
+        {
+            /*Codes_SRS_HTTPAPI_COMPACT_21_062: [ If any memory allocation get fail, the HTTPAPI_SetOption shall return HTTPAPI_ALLOC_FAILED. ]*/
+            LogInfo("unable to allocate memory for the certificate in HTTPAPI_SetOption");
+        }
+        else
+        {
+            /*Codes_SRS_HTTPAPI_COMPACT_21_064: [ If the HTTPAPI_SetOption get success setting the option, it shall return HTTPAPI_OK. ]*/
+            (void)strcpy(ai->ai_canonname, (const char*)he->h_name);
+        }
+#endif
         if (!ai->ai_canonname) {
             free(ai);
             break;
@@ -154,7 +170,11 @@ static void query_completed_cb(void *arg, int status, int timeouts, struct hoste
             addr = (void *)ai->ai_addr; /* storage area for this info */
 
             memcpy(&addr->sin_addr, curr, sizeof(struct in_addr));
+#ifdef WIN32
             addr->sin_family = (ADDRESS_FAMILY)(he->h_addrtype);
+#else
+            addr->sin_family = he->h_addrtype;
+#endif
             addr->sin_port = htons((unsigned short)dns->port);
             break;
         }
@@ -162,7 +182,7 @@ static void query_completed_cb(void *arg, int status, int timeouts, struct hoste
         prevai = ai;
     }
 
-    memcpy(&((dns->addrInfo)->ai_addr), &(firstai->ai_addr), sizeof(*((dns->addrInfo)->ai_addr)));
+    memcpy((dns->addrInfo)->ai_addr, firstai->ai_addr, sizeof(*((dns->addrInfo)->ai_addr)));
     dns->is_complete = true;
     dns->in_progress = false;
 

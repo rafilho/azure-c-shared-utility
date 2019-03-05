@@ -205,7 +205,7 @@ set(source_c_files
     ${XLOGGING_C_FILE}
     ./src/optionhandler.c
     ./src/memory_data.c
-    ./src/dns_resolver_sync.c #unhardcode this later
+    ./src/dns_resolver_ares.c #unhardcode this later
     ./adapters/agenttime.c
     ${CONDITION_C_FILE}
     ${LOCK_C_FILE}
@@ -538,7 +538,7 @@ if(LINUX)
     endif()
 endif()
 
-target_link_libraries(aziotsharedutil ${aziotsharedutil_target_libs})
+target_link_libraries(aziotsharedutil ${aziotsharedutil_target_libs} cares)
 if(${build_as_dynamic})
     target_link_libraries(aziotsharedutil_dll ${aziotsharedutil_target_libs})
 endif()
