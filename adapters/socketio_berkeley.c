@@ -732,8 +732,6 @@ void socketio_destroy(CONCRETE_IO_HANDLE socket_io)
         free(socket_io_instance->hostname);
         free(socket_io_instance->target_mac_address);
 
-        free(socket_io_instance->addrInfoIp->ai_addr);
-        freeaddrinfo(socket_io_instance->addrInfoIp);
         dns_resolver_destroy(socket_io_instance->dns_resolver);
 
         free(socket_io);
