@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "azure_c_shared_utility/gballoc.h"
 #include "azure_c_shared_utility/httpapiex.h"
+#include "azure_c_shared_utility/lock.h"
 #include "azure_c_shared_utility/optimize_size.h"
 #include "azure_c_shared_utility/xlogging.h"
 #include "azure_c_shared_utility/strings.h"
@@ -22,6 +23,7 @@ typedef struct HTTPAPIEX_HANDLE_DATA_TAG
     int k;
     HTTP_HANDLE httpHandle;
     VECTOR_HANDLE savedOptions;
+    LOCK_HANDLE httpapiLock;
 }HTTPAPIEX_HANDLE_DATA;
 
 MU_DEFINE_ENUM_STRINGS(HTTPAPIEX_RESULT, HTTPAPIEX_RESULT_VALUES);
@@ -48,29 +50,38 @@ HTTPAPIEX_HANDLE HTTPAPIEX_Create(const char* hostName)
         }
         else
         {
-            /*Codes_SRS_HTTPAPIEX_02_002: [Parameter hostName shall be saved.]*/
-            handleData->hostName = STRING_construct(hostName);
-            if (handleData->hostName == NULL)
+            if ((handleData->httpapiLock = Lock_Init()) == NULL)
             {
                 free(handleData);
-                LogError("unable to STRING_construct");
+                LogError("unable to create httpapi lock");
                 result = NULL;
             }
             else
             {
-                /*Codes_SRS_HTTPAPIEX_02_004: [Otherwise, HTTPAPIEX_Create shall return a HTTAPIEX_HANDLE suitable for further calls to the module.] */
-                handleData->savedOptions = VECTOR_create(sizeof(HTTPAPIEX_SAVED_OPTION));
-                if (handleData->savedOptions == NULL)
+                /*Codes_SRS_HTTPAPIEX_02_002: [Parameter hostName shall be saved.]*/
+                handleData->hostName = STRING_construct(hostName);
+                if (handleData->hostName == NULL)
                 {
-                    STRING_delete(handleData->hostName);
                     free(handleData);
+                    LogError("unable to STRING_construct");
                     result = NULL;
                 }
                 else
                 {
-                    handleData->k = -1;
-                    handleData->httpHandle = NULL;
-                    result = handleData;
+                    /*Codes_SRS_HTTPAPIEX_02_004: [Otherwise, HTTPAPIEX_Create shall return a HTTAPIEX_HANDLE suitable for further calls to the module.] */
+                    handleData->savedOptions = VECTOR_create(sizeof(HTTPAPIEX_SAVED_OPTION));
+                    if (handleData->savedOptions == NULL)
+                    {
+                        STRING_delete(handleData->hostName);
+                        free(handleData);
+                        result = NULL;
+                    }
+                    else
+                    {
+                        handleData->k = -1;
+                        handleData->httpHandle = NULL;
+                        result = handleData;
+                    }
                 }
             }
         }
@@ -370,13 +381,22 @@ HTTPAPIEX_RESULT HTTPAPIEX_ExecuteRequest(HTTPAPIEX_HANDLE handle, HTTPAPI_REQUE
                         {
                         case 0:
                         {
-                            if (HTTPAPI_Init() != HTTPAPI_OK)
+                            if (Lock(handleData->httpapiLock) == LOCK_ERROR)
                             {
                                 goOn = false;
                             }
                             else
                             {
-                                goOn = true;
+                                if (HTTPAPI_Init() != HTTPAPI_OK)
+                                {
+                                    goOn = false;
+                                }
+                                else
+                                {
+                                    goOn = true;
+                                }
+
+                                Unlock(handleData->httpapiLock);
                             }
                             break;
                         }
@@ -510,9 +530,12 @@ void HTTPAPIEX_Destroy(HTTPAPIEX_HANDLE handle)
         if (handleData->k == 2)
         {
             HTTPAPI_CloseConnection(handleData->httpHandle);
+            Lock(handleData->httpapiLock);
             HTTPAPI_Deinit();
+            Unlock(handleData->httpapiLock);
         }
         STRING_delete(handleData->hostName);
+        Lock_Deinit(handleData->httpapiLock);
 
         vectorSize = VECTOR_size(handleData->savedOptions);
         for (i = 0; i < vectorSize; i++)
